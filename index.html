@@ -1,0 +1,1347 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VeloxFinder</title>
+<meta name="description" content="Buscador de archivos instantáneo para Windows y Linux. Indexa la tabla maestra de NTFS y responde en milisegundos. Libre, MIT, sin telemetría.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="assets/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="VeloxFinder — encuentra cualquier archivo mientras escribes">
+<meta property="og:description" content="Indexa dos millones de archivos en segundos leyendo la MFT de NTFS y resuelve cada búsqueda en menos de 25 ms. Windows y Linux. Licencia MIT.">
+<meta property="og:image" content="assets/capturas/01-busqueda.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#070910">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink-900:#070910; --ink-850:#0b0e15; --ink-800:#10141e; --ink-750:#141824;
+  --ink-700:#181d2b; --line:#242c3f; --line-soft:#1a2030;
+  --text:#e8ecf6; --dim:#99a2b8; --faint:#6b7488;
+  --blue:#55b1f3; --violet:#7c8cff; --aqua:#5fd1e8; --green:#34d399; --amber:#f0c07a;
+  --display:"Archivo","Archivo Expanded",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+  --wrap:1160px; --r:8px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--ink-900); color:var(--text);
+  font-family:var(--body); font-size:16px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+img{max-width:100%;display:block}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px}
+h1,h2,h3{font-family:var(--display);font-weight:700;line-height:1.08;text-wrap:balance;margin:0;font-stretch:112%}
+h2{font-size:clamp(1.7rem,3.4vw,2.5rem);letter-spacing:-.015em}
+h3{font-size:1.05rem;font-weight:600;letter-spacing:-.005em;font-stretch:105%}
+p{margin:0}
+code,kbd{font-family:var(--mono)}
+.wrap{max-width:var(--wrap);margin-inline:auto;padding-inline:24px}
+.eyebrow{
+  font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--faint);margin:0 0 14px
+}
+.lede{color:var(--dim);font-size:1.05rem;max-width:62ch}
+section{padding-block:clamp(64px,8vw,110px);position:relative}
+section[id]{scroll-margin-top:74px}
+.rule{height:1px;background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent)}
+
+/* ---------- nav ---------- */
+.nav{
+  position:sticky;top:0;z-index:60;background:rgba(7,9,16,.82);
+  backdrop-filter:blur(14px);border-bottom:1px solid var(--line-soft)
+}
+.nav .wrap{display:flex;align-items:center;gap:28px;height:60px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--text);font-family:var(--display);
+  font-weight:700;font-stretch:112%;letter-spacing:-.01em;font-size:1.02rem}
+.brand:hover{text-decoration:none}
+.brand img{width:24px;height:24px;border-radius:6px}
+.nav nav{display:flex;gap:22px;margin-left:auto}
+.nav nav a{color:var(--dim);font-size:.9rem}
+.nav nav a:hover{color:var(--text);text-decoration:none}
+.nav .btn{padding:7px 15px;font-size:.86rem}
+@media(max-width:820px){.nav nav{display:none}.nav .wrap{gap:16px}}
+
+/* ---------- botones ---------- */
+.btn{
+  display:inline-flex;align-items:center;gap:9px;padding:11px 20px;border-radius:var(--r);
+  font-family:var(--body);font-weight:600;font-size:.94rem;border:1px solid var(--line);
+  color:var(--text);background:var(--ink-700);cursor:pointer;transition:.16s ease;
+  white-space:nowrap;text-decoration:none
+}
+.btn:hover{background:#1e2434;border-color:#313c55;text-decoration:none}
+.btn-primary{
+  background:linear-gradient(180deg,#5cb6f6,#4a7ff0);border-color:#4f8ef2;color:#05121f;
+  box-shadow:0 1px 0 rgba(255,255,255,.22) inset,0 8px 26px -12px rgba(85,177,243,.85)
+}
+.btn-primary:hover{background:linear-gradient(180deg,#6cc0f8,#5589f2);border-color:#69a3f5}
+.btn svg{width:17px;height:17px;flex:none}
+
+/* ---------- hero ---------- */
+.hero{padding-top:clamp(52px,7vw,88px);padding-bottom:clamp(40px,5vw,64px);overflow:hidden}
+.hero::before{
+  content:"";position:absolute;inset:-160px 0 auto 0;height:520px;pointer-events:none;
+  background:
+    radial-gradient(680px 300px at 24% 0%,rgba(85,177,243,.16),transparent 70%),
+    radial-gradient(520px 260px at 78% 8%,rgba(124,140,255,.13),transparent 70%)
+}
+.hero .wrap{position:relative}
+.hero h1{font-size:clamp(2.5rem,6.2vw,4.35rem);letter-spacing:-.03em;font-stretch:115%;max-width:15ch}
+.hero h1 em{font-style:normal;color:var(--blue)}
+.hero .lede{margin-top:20px;font-size:clamp(1.02rem,1.5vw,1.18rem)}
+.hero-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px;align-items:center}
+.hero-meta{
+  display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:22px;
+  font-family:var(--mono);font-size:.78rem;color:var(--faint)
+}
+.hero-meta span{display:flex;align-items:center;gap:7px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--green);flex:none}
+
+/* ---------- ventana de la app ---------- */
+.window{
+  margin-top:44px;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  background:var(--ink-750);
+  box-shadow:0 40px 90px -40px rgba(0,0,0,.95),0 0 0 1px rgba(85,177,243,.07),
+             0 2px 60px -24px rgba(85,177,243,.28)
+}
+.titlebar{
+  display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;
+  background:#141724;border-bottom:1px solid var(--line-soft);font-size:.82rem
+}
+.titlebar .logo{width:19px;height:19px;border-radius:5px}
+.titlebar b{font-family:var(--display);font-weight:700;font-stretch:110%;font-size:.9rem}
+.titlebar .tag{
+  font-family:var(--mono);font-size:.68rem;color:var(--faint);background:var(--ink-700);
+  border-radius:4px;padding:2px 7px
+}
+.wctl{margin-left:auto;display:flex;gap:16px;color:#57607a;font-size:.9rem;letter-spacing:2px}
+
+/* ---------- demo ---------- */
+.demo{display:grid;grid-template-columns:210px 1fr;height:462px}
+.demo-side{border-right:1px solid var(--line-soft);background:var(--ink-850);padding:16px 12px;font-size:.85rem}
+.side-h{font-family:var(--mono);font-size:.63rem;letter-spacing:.18em;color:var(--faint);
+  text-transform:uppercase;padding:0 8px;margin:0 0 8px}
+.side-item{
+  display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:5px;color:var(--dim);
+  cursor:default;font-size:.84rem
+}
+.side-item.on{background:var(--ink-700);color:var(--text)}
+.side-item i{width:13px;height:13px;border-radius:3px;background:#2b3550;flex:none;display:block}
+.side-item.drive i{background:linear-gradient(140deg,#3f7fd6,#2b4f8f)}
+.side-foot{margin-top:22px;padding:12px 10px;border-top:1px solid var(--line-soft)}
+.side-foot .st{display:flex;align-items:center;gap:8px;font-size:.82rem}
+.bar{height:3px;border-radius:2px;background:var(--ink-700);margin:9px 0 8px;overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--blue),var(--violet))}
+.side-foot small{color:var(--faint);font-family:var(--mono);font-size:.68rem;line-height:1.5;display:block}
+.demo-main{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--ink-750)}
+.searchbar{
+  flex:none;display:flex;align-items:center;gap:10px;margin:14px 14px 10px;padding:10px 14px;
+  background:var(--ink-700);border:1px solid #2f6da8;border-radius:7px;
+  box-shadow:0 0 0 3px rgba(85,177,243,.10)
+}
+.searchbar svg{width:16px;height:16px;color:var(--faint);flex:none}
+.searchbar input{
+  flex:1;min-width:0;background:none;border:0;color:var(--text);font-family:var(--body);
+  font-size:1rem;outline:none
+}
+.searchbar input::placeholder{color:#5a637a}
+.chips{flex:none;display:flex;flex-wrap:wrap;gap:7px;padding:0 14px 12px}
+.chip{
+  font-size:.78rem;color:var(--dim);background:var(--ink-700);border:1px solid var(--line-soft);
+  border-radius:5px;padding:4px 11px;cursor:pointer;font-family:var(--body);transition:.14s
+}
+.chip:hover{color:var(--text);border-color:#33405c}
+.chip.on{background:rgba(85,177,243,.14);border-color:#2f6da8;color:#bfe0fb}
+.tablewrap{flex:1 1 0;min-height:0;overflow:auto;margin:0 14px;border:1px solid var(--line-soft);border-radius:7px;background:var(--ink-800)}
+table.res{width:100%;border-collapse:collapse;font-size:.855rem}
+table.res th{
+  position:sticky;top:0;background:var(--ink-750);text-align:left;font-weight:500;color:var(--dim);
+  font-size:.78rem;padding:8px 12px;border-bottom:1px solid var(--line-soft);white-space:nowrap
+}
+table.res td{padding:6px 12px;border-bottom:1px solid rgba(36,44,63,.5);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+table.res tr:hover td{background:rgba(85,177,243,.05)}
+.c-name{max-width:290px}
+.c-path{color:var(--dim);max-width:340px}
+.c-size,.c-date{text-align:right;font-family:var(--mono);font-size:.78rem;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.c-type{color:var(--faint);font-family:var(--mono);font-size:.75rem}
+.fname{display:flex;align-items:center;gap:9px;min-width:0}
+.ftag{
+  font-family:var(--mono);font-size:.56rem;font-weight:500;letter-spacing:.02em;color:#eaf2ff;
+  background:#3a4560;border-radius:3px;padding:2px 4px;flex:none;width:26px;text-align:center
+}
+.fn{overflow:hidden;text-overflow:ellipsis}
+mark{background:rgba(95,209,232,.22);color:#a9e8f6;border-radius:2px;padding:0 1px}
+.empty{padding:34px 16px;text-align:center;color:var(--faint);font-size:.9rem}
+.statusbar{
+  flex:none;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:9px 16px;margin-top:12px;
+  border-top:1px solid var(--line-soft);background:var(--ink-800);
+  font-family:var(--mono);font-size:.72rem;color:var(--faint);font-variant-numeric:tabular-nums
+}
+.statusbar b{color:var(--aqua);font-weight:500}
+.statusbar .right{margin-left:auto}
+.demo-note{
+  margin:14px auto 0;text-align:center;font-family:var(--mono);font-size:.72rem;color:var(--faint)
+}
+@media(max-width:760px){
+  .demo{grid-template-columns:1fr;height:420px}
+  .demo-side{display:none}
+  .c-path,.c-date{display:none}
+}
+
+/* ---------- franja de cifras ---------- */
+.figures{border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);
+  background:var(--ink-850);padding-block:0}
+.figures .wrap{display:grid;grid-template-columns:repeat(4,1fr)}
+.fig{padding:26px 26px 24px;border-left:1px solid var(--line-soft)}
+.fig:first-child{border-left:0;padding-left:0}
+.fig .n{font-family:var(--display);font-size:1.75rem;font-weight:700;font-stretch:110%;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.fig .n span{font-size:.95rem;color:var(--dim);font-weight:600}
+.fig .l{color:var(--faint);font-size:.82rem;margin-top:3px;line-height:1.45}
+@media(max-width:780px){
+  .figures .wrap{grid-template-columns:1fr 1fr}
+  .fig{padding:20px}.fig:nth-child(odd){border-left:0;padding-left:0}
+  .fig:nth-child(n+3){border-top:1px solid var(--line-soft)}
+}
+
+/* ---------- características ---------- */
+.feat-head{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:44px;flex-wrap:wrap}
+.feats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-soft);
+  border:1px solid var(--line-soft);border-radius:var(--r);overflow:hidden}
+.feat{background:var(--ink-850);padding:26px 24px 28px;transition:background .18s}
+.feat:hover{background:var(--ink-800)}
+.feat svg{width:20px;height:20px;color:var(--blue);margin-bottom:14px}
+.feat:nth-child(4n+2) svg{color:var(--violet)}
+.feat:nth-child(4n+3) svg{color:var(--aqua)}
+.feat p{color:var(--dim);font-size:.9rem;margin-top:8px}
+@media(max-width:960px){.feats{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.feats{grid-template-columns:1fr}}
+
+/* ---------- sintaxis ---------- */
+.syn-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:start}
+.syn-group + .syn-group{margin-top:26px}
+.syn-group h4{
+  font-family:var(--mono);font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--faint);font-weight:400;margin:0 0 10px
+}
+.syn-row{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:baseline;padding:5px 0}
+.syn-row .d{color:var(--dim);font-size:.88rem}
+.tok{
+  font-family:var(--mono);font-size:.8rem;color:var(--aqua);background:rgba(95,209,232,.07);
+  border:1px solid rgba(95,209,232,.2);border-radius:5px;padding:3px 8px;white-space:nowrap
+}
+button.tok{cursor:pointer;transition:.14s}
+button.tok:hover{background:rgba(95,209,232,.17);border-color:rgba(95,209,232,.45)}
+button.tok::after{content:" ▸";color:rgba(95,209,232,.55)}
+.syn-aside{position:sticky;top:84px}
+.shot{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--ink-800);
+  box-shadow:0 26px 60px -34px rgba(0,0,0,.9)}
+.shot img{width:100%}
+.cap{color:var(--faint);font-size:.82rem;margin-top:12px}
+.cap b{color:var(--dim);font-weight:600}
+@media(max-width:900px){.syn-grid{grid-template-columns:1fr;gap:40px}.syn-aside{position:static}}
+
+/* ---------- galería ---------- */
+.gal{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.gal figure{margin:0}
+.gal button.shotbtn{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in}
+.gal figcaption{color:var(--faint);font-size:.85rem;margin-top:12px}
+.gal figcaption b{display:block;color:var(--text);font-weight:600;font-size:.92rem;margin-bottom:2px}
+@media(max-width:760px){.gal{grid-template-columns:1fr}}
+
+/* ---------- interior ---------- */
+.inner{display:grid;grid-template-columns:1fr 1fr;gap:56px}
+.step{display:grid;grid-template-columns:auto 1fr;gap:18px;padding:22px 0;border-top:1px solid var(--line-soft)}
+.step:first-of-type{border-top:0;padding-top:0}
+.step .k{font-family:var(--mono);font-size:.72rem;color:var(--blue);padding-top:5px;letter-spacing:.04em}
+.step p{color:var(--dim);font-size:.9rem;margin-top:7px}
+.step p code{color:var(--aqua);font-size:.83rem}
+.layout-fig{margin-top:8px}
+.perf{border:1px solid var(--line-soft);border-radius:var(--r);background:var(--ink-850);padding:24px}
+.perf h3{margin-bottom:4px}
+.perf .sub{color:var(--faint);font-size:.82rem;margin-bottom:20px}
+.pbar{display:grid;grid-template-columns:1fr auto;gap:4px 14px;align-items:baseline;margin-top:14px}
+.pbar .q{font-family:var(--mono);font-size:.8rem;color:var(--dim)}
+.pbar .v{font-family:var(--mono);font-size:.82rem;color:var(--text);font-variant-numeric:tabular-nums}
+.pbar .t{grid-column:1/-1;height:5px;border-radius:3px;background:var(--ink-700);overflow:hidden}
+.pbar .t i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--violet));border-radius:3px}
+.perf .foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--line-soft);
+  color:var(--faint);font-size:.82rem}
+@media(max-width:900px){.inner{grid-template-columns:1fr;gap:40px}}
+
+/* ---------- descargas ---------- */
+.dl{background:var(--ink-850);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
+.dl-head{text-align:center;margin-bottom:40px}
+.dl-head .lede{margin-inline:auto}
+.os{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.os-col{border:1px solid var(--line);border-radius:10px;background:var(--ink-800);overflow:hidden}
+.os-col > header{display:flex;align-items:center;gap:11px;padding:16px 22px;border-bottom:1px solid var(--line-soft);
+  background:var(--ink-750)}
+.os-col > header svg{width:19px;height:19px;color:var(--dim)}
+.os-col > header h3{font-size:1rem}
+.os-col > header .ver{margin-left:auto;font-family:var(--mono);font-size:.72rem;color:var(--faint)}
+.pkg{display:flex;gap:16px;align-items:flex-start;padding:20px 22px;border-top:1px solid var(--line-soft)}
+.pkg:first-of-type{border-top:0}
+.pkg .txt{flex:1;min-width:0}
+.pkg h4{margin:0;font-size:.94rem;font-weight:600;font-family:var(--body)}
+.pkg .rec{font-family:var(--mono);font-size:.63rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--green);margin-left:8px}
+.pkg p{color:var(--dim);font-size:.85rem;margin-top:5px}
+.pkg p code{font-size:.78rem;color:var(--aqua);background:var(--ink-750);padding:2px 6px;border-radius:4px;
+  display:inline-block;margin-top:6px;overflow-wrap:anywhere}
+.pkg .size{font-family:var(--mono);font-size:.72rem;color:var(--faint);margin-top:7px;display:block}
+.pkg .btn{margin-top:2px}
+.notes{margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.note{border:1px solid var(--line-soft);border-left:2px solid var(--amber);border-radius:0 var(--r) var(--r) 0;
+  background:var(--ink-800);padding:16px 20px}
+.note.info{border-left-color:var(--blue)}
+.note h4{margin:0 0 5px;font-size:.9rem;font-family:var(--body);font-weight:600}
+.note p{color:var(--dim);font-size:.85rem}
+.reqs{margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:18px;
+  font-size:.85rem;color:var(--dim)}
+.reqs b{color:var(--faint);font-weight:600;font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;
+  text-transform:uppercase;display:block;margin-bottom:6px}
+.reqs code{font-size:.8rem;color:var(--aqua)}
+@media(max-width:820px){.os,.notes,.reqs{grid-template-columns:1fr}}
+
+/* ---------- atajos + límites ---------- */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+kbd{
+  display:inline-block;font-size:.74rem;color:var(--text);background:var(--ink-700);
+  border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:2px 7px;white-space:nowrap
+}
+.keys{display:grid;gap:2px;margin-top:22px}
+.keyrow{display:grid;grid-template-columns:170px 1fr;gap:16px;align-items:baseline;padding:7px 0;
+  border-top:1px solid var(--line-soft);font-size:.88rem;color:var(--dim)}
+.keyrow:first-child{border-top:0}
+.lims{margin-top:22px;display:grid;gap:11px}
+.lims li{list-style:none;color:var(--dim);font-size:.89rem;padding-left:20px;position:relative}
+.lims li::before{content:"—";position:absolute;left:0;color:var(--faint)}
+.lims b{color:var(--text);font-weight:600}
+@media(max-width:820px){.two{grid-template-columns:1fr;gap:44px}.keyrow{grid-template-columns:150px 1fr}}
+
+/* ---------- cierre + pie ---------- */
+.closing{text-align:center}
+.closing h2{max-width:18ch;margin-inline:auto}
+.closing .lede{margin:18px auto 0;text-align:center}
+.closing .hero-actions{justify-content:center}
+footer{border-top:1px solid var(--line-soft);background:var(--ink-850);padding-block:36px;
+  color:var(--faint);font-size:.85rem}
+footer .wrap{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center}
+footer nav{display:flex;gap:22px;margin-left:auto;flex-wrap:wrap}
+footer a{color:var(--dim)}
+
+/* ---------- lightbox ---------- */
+.lb{position:fixed;inset:0;z-index:90;background:rgba(4,6,11,.93);display:none;
+  align-items:center;justify-content:center;padding:28px;backdrop-filter:blur(3px)}
+.lb[open]{display:flex}
+.lb img{max-width:min(1280px,96vw);max-height:88vh;border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 40px 100px -30px #000}
+.lb button{position:absolute;top:20px;right:24px;background:var(--ink-700);border:1px solid var(--line);
+  color:var(--text);width:36px;height:36px;border-radius:8px;font-size:1.1rem;cursor:pointer;line-height:1}
+
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;scroll-behavior:auto !important}
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/icono-veloxfinder.png" alt="">VeloxFinder</a>
+    <nav>
+      <a href="#que-hace">Qué hace</a>
+      <a href="#sintaxis">Sintaxis</a>
+      <a href="#interior">Por dentro</a>
+      <a href="#capturas">Capturas</a>
+      <a href="#descargar">Descargar</a>
+    </nav>
+    <a class="btn btn-primary" href="#descargar">Descargar</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Buscador de archivos instantáneo · Windows y Linux · MIT</p>
+    <h1>Encuentra cualquier archivo <em>mientras escribes.</em></h1>
+    <p class="lede">
+      VeloxFinder lee la tabla maestra de NTFS y construye el índice de un disco con dos millones
+      de archivos en segundos. A partir de ahí, cada tecla que pulsas devuelve resultados en
+      menos de 25&nbsp;milisegundos. Clon libre de Everything, con interfaz moderna y versión para Linux.
+    </p>
+
+    <div class="hero-actions">
+      <a class="btn btn-primary" id="cta-primary" href="https://github.com/altorrecillas/VeloxFinder/releases">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span id="cta-primary-label">Descargar</span>
+      </a>
+      <a class="btn" href="#descargar">Todas las descargas</a>
+      <a class="btn" href="https://github.com/altorrecillas/VeloxFinder">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg>
+        Código en GitHub
+      </a>
+    </div>
+
+    <div class="hero-meta">
+      <span><i class="dot"></i>No envía ningún dato fuera de tu equipo</span>
+      <span>Licencia MIT</span>
+      <span>Ejecutable de 7 MB</span>
+      <span>Rust + Tauri</span>
+    </div>
+
+    <!-- ventana con demo funcional -->
+    <div class="window" id="demo-window">
+      <div class="titlebar">
+        <img class="logo" src="assets/icono-veloxfinder.png" alt="">
+        <b>VeloxFinder</b>
+        <span class="tag">Demo</span>
+        <span class="wctl">—&nbsp;□&nbsp;×</span>
+      </div>
+      <div class="demo">
+        <aside class="demo-side">
+          <p class="side-h">Unidades</p>
+          <div class="side-item drive"><i></i>C:\ Sistema</div>
+          <div class="side-item drive"><i></i>D:\ Datos</div>
+          <p class="side-h" style="margin-top:18px">Categorías</p>
+          <div class="side-item on"><i></i>Todo</div>
+          <div class="side-item"><i></i>Documentos</div>
+          <div class="side-item"><i></i>Imágenes</div>
+          <div class="side-item"><i></i>Vídeos</div>
+          <div class="side-item"><i></i>Código</div>
+          <div class="side-foot">
+            <div class="st"><i class="dot"></i>Índice listo</div>
+            <div class="bar"><i></i></div>
+            <small id="demo-index-note">Muestra de ejemplo cargada</small>
+          </div>
+        </aside>
+
+        <div class="demo-main">
+          <label class="searchbar" for="q">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+            <input id="q" type="search" autocomplete="off" spellcheck="false"
+                   placeholder="Escribe para buscar: factura, *.pdf, size:&gt;100mb…" aria-label="Buscar en la demostración">
+          </label>
+          <div class="chips" id="chips"></div>
+          <div class="tablewrap">
+            <table class="res">
+              <thead>
+                <tr>
+                  <th class="c-name">Nombre</th>
+                  <th class="c-path">Ruta</th>
+                  <th class="c-size" style="text-align:right">Tamaño</th>
+                  <th class="c-date" style="text-align:right">Modificado</th>
+                  <th class="c-type">Tipo</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+          <div class="statusbar">
+            <span><b id="st-count">0</b> resultados</span>
+            <span><b id="st-ms">0 ms</b></span>
+            <span id="st-total">0 elementos en la muestra</span>
+            <span class="right">v1.0.1</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note">
+      Demostración en el navegador con una muestra de archivos ficticios.
+      La aplicación real hace lo mismo sobre millones de archivos de tu disco.
+    </p>
+  </div>
+</section>
+
+<!-- ============ CIFRAS ============ -->
+<section class="figures">
+  <div class="wrap">
+    <div class="fig">
+      <div class="n">&lt;25 <span>ms</span></div>
+      <div class="l">por búsqueda sobre 2 millones de archivos</div>
+    </div>
+    <div class="fig">
+      <div class="n">5,9 <span>M/s</span></div>
+      <div class="l">registros MFT analizados por segundo y por hilo</div>
+    </div>
+    <div class="fig">
+      <div class="n">24 <span>bytes</span></div>
+      <div class="l">por archivo en el índice, sólo desplazamientos</div>
+    </div>
+    <div class="fig">
+      <div class="n">7 <span>MB</span></div>
+      <div class="l">un ejecutable portátil que cabe en un pendrive</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ QUÉ HACE ============ -->
+<section id="que-hace">
+  <div class="wrap">
+    <div class="feat-head">
+      <div>
+        <p class="eyebrow">Qué hace</p>
+        <h2>Escribes tres letras y ya<br>tienes los resultados.</h2>
+      </div>
+      <p class="lede" style="max-width:46ch;font-size:.98rem">
+        No es una promesa de marketing: es lo que ocurre cuando el índice vive en memoria,
+        ocupa 24 bytes por archivo y no hay que abrir una sola carpeta para construirlo.
+      </p>
+    </div>
+
+    <div class="feats">
+      <article class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <h3>Indexado instantáneo</h3>
+        <p>Lee la tabla maestra de archivos (<code>$MFT</code>) del volumen NTFS directamente, sin recorrer carpetas.</p>
+      </article>
+      <article class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+        <h3>Siempre al día</h3>
+        <p>Vigila el diario de cambios de NTFS: si creas, mueves o borras un archivo, la lista se corrige sola.</p>
+      </article>
+      <article class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/><path d="M12 8h9"/></svg>
+        <h3>Interfaz moderna</h3>
+        <p>Tema claro y oscuro, vista previa de imágenes y texto, resaltado de coincidencias y modo compacto.</p>
+      </article>
+      <article class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><line x1="3" y1="21" x2="21" y2="3"/></svg>
+        <h3>Excluir carpetas</h3>
+        <p>Cada unidad tiene su lista. Copias de seguridad, máquinas virtuales o <code>node_modules</code>: fuera del índice.</p>
+      </article>
+      <article class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/></svg>
+        <h3>Carpetas en red</h3>
+        <p>Rutas UNC y unidades asignadas, con refresco periódico para que no se queden atrás.</p>
+      </article>
+      <article class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 8 5 12 9 16"/><polyline points="15 8 19 12 15 16"/></svg>
+        <h3>Sintaxis potente</h3>
+        <p>Comodines, expresiones regulares, filtros por tamaño, fecha, atributos, duplicados y búsqueda dentro de los archivos.</p>
+      </article>
+      <article class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7.5 8.5l3 2.2-3 2.2"/><path d="M12.5 13h4"/></svg>
+        <h3>También en Linux</h3>
+        <p>Paquete <code>.deb</code> para Debian, Ubuntu y derivadas, o binario portátil sin instalar nada.</p>
+      </article>
+      <article class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        <h3>Ligero y sin rastro</h3>
+        <p>Un solo ejecutable que puede vivir en un pendrive sin escribir nada en el registro, y que no envía datos a ninguna parte.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ SINTAXIS ============ -->
+<section id="sintaxis">
+  <div class="wrap">
+    <div class="syn-grid">
+      <div>
+        <p class="eyebrow">Sintaxis de búsqueda</p>
+        <h2>Compatible con la de Everything.</h2>
+        <p class="lede" style="margin-top:16px">
+          Los operadores se combinan libremente:
+          <code class="tok" style="display:inline-block;margin-top:6px">factura ext:pdf dm:mes size:&gt;1mb</code>.
+          Pulsa <kbd>F1</kbd> dentro de la aplicación para tener la chuleta a mano —
+          o prueba aquí mismo las marcadas con ▸, que se ejecutan en la demostración de arriba.
+        </p>
+
+        <div class="syn-group" style="margin-top:36px">
+          <h4>Operadores</h4>
+          <div class="syn-row"><button class="tok" data-q="informe 2026">informe 2026</button><span class="d">las dos palabras (Y lógico)</span></div>
+          <div class="syn-row"><button class="tok" data-q="factura | contrato">factura | contrato</button><span class="d">una u otra (O lógico)</span></div>
+          <div class="syn-row"><button class="tok" data-q="factura !2025">!tmp</button><span class="d">excluye lo que contenga esa palabra</span></div>
+          <div class="syn-row"><button class="tok" data-q="&quot;acta final&quot;">"acta final"</button><span class="d">frase literal</span></div>
+          <div class="syn-row"><button class="tok" data-q="*.pdf">*.pdf inf?rme.docx</button><span class="d">comodines sobre el nombre completo</span></div>
+        </div>
+
+        <div class="syn-group">
+          <h4>Filtros</h4>
+          <div class="syn-row"><button class="tok" data-q="ext:jpg;png">ext:jpg;png</button><span class="d">por extensión</span></div>
+          <div class="syn-row"><button class="tok" data-q="size:&gt;100mb">size:&gt;100mb</button><span class="d">también <code>size:&lt;1gb</code>, <code>size:1mb..10mb</code>, <code>size:vacio</code></span></div>
+          <div class="syn-row"><span class="tok">dm:hoy</span><span class="d">ayer, semana, mes, año, <code>dm:&gt;2026-01-31</code></span></div>
+          <div class="syn-row"><span class="tok">attrib:h</span><span class="d">oculto (R sólo lectura, S sistema, A archivo)</span></div>
+          <div class="syn-row"><span class="tok">len:&gt;40</span><span class="d">longitud del nombre</span></div>
+          <div class="syn-row"><button class="tok" data-q="folder:">file: folder:</button><span class="d">sólo archivos / sólo carpetas</span></div>
+        </div>
+
+        <div class="syn-group">
+          <h4>Ámbito</h4>
+          <div class="syn-row"><button class="tok" data-q="path:proyectos">path:proyectos</button><span class="d">busca en la ruta completa</span></div>
+          <div class="syn-row"><span class="tok">parent:C:\Users\ana</span><span class="d">contenido directo de esa carpeta</span></div>
+          <div class="syn-row"><span class="tok">depth:3</span><span class="d">nivel de profundidad de la ruta</span></div>
+          <div class="syn-row"><span class="tok">wfn:notas.txt</span><span class="d">el nombre completo debe ser exactamente ése</span></div>
+        </div>
+
+        <div class="syn-group">
+          <h4>Funciones</h4>
+          <div class="syn-row"><button class="tok" data-q="dupe:">dupe:</button><span class="d">nombres repetidos (<code>sizedupe:</code> por tamaño)</span></div>
+          <div class="syn-row"><span class="tok">empty:</span><span class="d">archivos y carpetas vacíos</span></div>
+          <div class="syn-row"><span class="tok">content:contraseña</span><span class="d">busca dentro de los archivos (lento, sin índice)</span></div>
+          <div class="syn-row"><button class="tok" data-q="regex:^IMG_\d{4}">regex:^IMG_\d{4}</button><span class="d">expresión regular</span></div>
+          <div class="syn-row"><button class="tok" data-q="*.pdf count:5">count:500</button><span class="d">limita el número de resultados</span></div>
+        </div>
+      </div>
+
+      <div class="syn-aside">
+        <figure class="shot" style="margin:0">
+          <picture>
+            <source srcset="assets/capturas/02-sintaxis.webp" type="image/webp">
+            <img src="assets/capturas/02-sintaxis.png" width="1280" height="820" loading="lazy"
+                 alt="Ventana de VeloxFinder con la chuleta de sintaxis abierta sobre la lista de resultados">
+          </picture>
+        </figure>
+        <p class="cap"><b>La chuleta completa, dentro del programa.</b>
+          Operadores, filtros, ámbito y funciones, siempre a un <kbd>F1</kbd> de distancia.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ POR DENTRO ============ -->
+<section id="interior">
+  <div class="wrap">
+    <p class="eyebrow">Cómo funciona por dentro</p>
+    <h2 style="max-width:20ch">Rápido porque no busca<br>como los demás.</h2>
+    <div class="inner" style="margin-top:46px">
+      <div>
+        <div class="step">
+          <span class="k">01</span>
+          <div>
+            <h3>Se lee el disco en crudo, no las carpetas</h3>
+            <p>NTFS guarda un registro de 1&nbsp;KiB por archivo en una tabla llamada MFT.
+               VeloxFinder abre el volumen (<code>\\.\C:</code>) y la lee entera: un hilo trae bloques
+               de 16&nbsp;MiB mientras el resto de núcleos los analiza. De ahí salen nombre, carpeta
+               padre, tamaño, fechas y atributos sin haber abierto una sola carpeta.</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="k">02</span>
+          <div>
+            <h3>Cada archivo cabe en 24 bytes</h3>
+            <p>Los nombres viven en un único búfer contiguo y cada entrada guarda sólo
+               desplazamientos. Al lado hay un array de 8 bytes por entrada —máscara de los
+               caracteres del nombre, longitud y tipo— que es lo único que recorre el bucle de
+               búsqueda: si a la consulta le falta un carácter que la máscara no tiene, la entrada
+               se descarta sin tocar memoria lejana.</p>
+            <div class="layout-fig">
+              <svg viewBox="0 0 460 96" width="100%" height="96" role="img"
+                   aria-label="Diagrama: entrada de índice de 24 bytes con sólo desplazamientos, y criba de 8 bytes con máscara de caracteres, longitud y tipo">
+                <g font-family="IBM Plex Mono, monospace" font-size="9.5">
+                  <text x="0" y="10" fill="#6b7488" letter-spacing="1.6">ENTRADA · 24 B</text>
+                  <rect x="0" y="18" width="300" height="26" rx="4" fill="#181d2b" stroke="#242c3f"/>
+                  <line x1="100" y1="18" x2="100" y2="44" stroke="#242c3f"/>
+                  <line x1="200" y1="18" x2="200" y2="44" stroke="#242c3f"/>
+                  <text x="50" y="35" fill="#99a2b8" text-anchor="middle">nombre →</text>
+                  <text x="150" y="35" fill="#99a2b8" text-anchor="middle">padre →</text>
+                  <text x="250" y="35" fill="#99a2b8" text-anchor="middle">datos →</text>
+                  <text x="312" y="35" fill="#6b7488">desplazamientos</text>
+
+                  <text x="0" y="66" fill="#6b7488" letter-spacing="1.6">CRIBA · 8 B</text>
+                  <rect x="0" y="74" width="300" height="20" rx="4" fill="#10141e" stroke="#2f6da8"/>
+                  <line x1="180" y1="74" x2="180" y2="94" stroke="#2f6da8" opacity=".5"/>
+                  <line x1="240" y1="74" x2="240" y2="94" stroke="#2f6da8" opacity=".5"/>
+                  <text x="90" y="88" fill="#5fd1e8" text-anchor="middle">máscara de caracteres</text>
+                  <text x="210" y="88" fill="#5fd1e8" text-anchor="middle">longitud</text>
+                  <text x="270" y="88" fill="#5fd1e8" text-anchor="middle">tipo</text>
+                  <text x="312" y="88" fill="#6b7488">lo único que recorre el bucle</text>
+                </g>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <span class="k">03</span>
+          <div>
+            <h3>Ordenar no compara cadenas</h3>
+            <p>Cada entrada lleva precalculada su posición en el orden alfabético global, así que
+               ordenar un millón de resultados es comparar enteros de 32 bits. Y al teclear, cada
+               carácter nuevo sólo puede reducir el conjunto anterior: se filtra ese conjunto,
+               no el índice entero.</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="k">04</span>
+          <div>
+            <h3>Y se mantiene al día solo</h3>
+            <p>Un hilo lee el USN Change Journal, el diario donde NTFS anota cada cambio del
+               sistema de archivos. Por eso lo que acabas de guardar ya aparece en la siguiente
+               búsqueda.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="perf">
+        <h3>Rendimiento medido</h3>
+        <p class="sub">Banco de pruebas propio con 2 millones de archivos sintéticos,
+          <strong style="color:var(--dim)">un solo hilo</strong>, sobre hardware ARM modesto.
+          En un sobremesa con varios núcleos es sustancialmente más rápido: el motor va en paralelo.</p>
+
+        <div class="pbar"><span class="q">factura <span style="color:var(--faint)">· 58 000 resultados</span></span><span class="v">16 ms</span><span class="t"><i style="width:3.1%"></i></span></div>
+        <div class="pbar"><span class="q">factura 2024</span><span class="v">3 ms</span><span class="t"><i style="width:1%"></i></span></div>
+        <div class="pbar"><span class="q">*.pdf <span style="color:var(--faint)">· 93 000 resultados</span></span><span class="v">42 ms</span><span class="t"><i style="width:8%"></i></span></div>
+        <div class="pbar"><span class="q">a <span style="color:var(--faint)">· 1,28 M resultados</span></span><span class="v">370 ms</span><span class="t"><i style="width:70.9%"></i></span></div>
+        <div class="pbar"><span class="q">consulta vacía <span style="color:var(--faint)">· 2 M resultados</span></span><span class="v">522 ms</span><span class="t"><i style="width:100%"></i></span></div>
+
+        <p class="foot">Analizador de la MFT: <strong style="color:var(--text)">5,9 millones de
+          registros por segundo</strong> en un hilo (≈5,7 GB/s). Con esas cifras la indexación está
+          limitada por la velocidad del disco, no por la CPU.<br><br>
+          <strong style="color:var(--text)">31 pruebas automáticas</strong>, que pasan compilando
+          para Linux y para Windows. Las más interesantes construyen registros MFT sintéticos
+          conformes a la especificación de NTFS y comprueban que el analizador los interpreta bien;
+          otra contrasta el motor optimizado contra una implementación ingenua con 40 consultas,
+          para que ninguna optimización descarte resultados válidos en silencio.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ CAPTURAS ============ -->
+<section id="capturas">
+  <div class="wrap">
+    <p class="eyebrow">Capturas</p>
+    <h2 style="margin-bottom:38px">La aplicación, por dentro.</h2>
+    <div class="gal">
+      <figure>
+        <button class="shotbtn" data-full="assets/capturas/01-busqueda.png">
+          <span class="shot" style="display:block">
+            <picture>
+              <source srcset="assets/capturas/01-busqueda.webp" type="image/webp">
+              <img src="assets/capturas/01-busqueda.png" width="1280" height="820" loading="lazy"
+                   alt="Lista de resultados de VeloxFinder para la consulta factura, con las coincidencias resaltadas">
+            </picture>
+          </span>
+        </button>
+        <figcaption><b>Búsqueda instantánea</b>
+          Coincidencias resaltadas, categorías en la barra lateral y el estado del índice siempre visible.</figcaption>
+      </figure>
+      <figure>
+        <button class="shotbtn" data-full="assets/capturas/04-detalles.png">
+          <span class="shot" style="display:block">
+            <picture>
+              <source srcset="assets/capturas/04-detalles.webp" type="image/webp">
+              <img src="assets/capturas/04-detalles.png" width="1280" height="820" loading="lazy"
+                   alt="Panel de detalles de VeloxFinder mostrando ruta, tamaño y fechas de un archivo">
+            </picture>
+          </span>
+        </button>
+        <figcaption><b>Panel de detalles</b>
+          Ruta, tamaño, fechas y acciones directas: abrir, ver la carpeta o copiar la ruta.</figcaption>
+      </figure>
+      <figure>
+        <button class="shotbtn" data-full="assets/capturas/03-exclusiones.png">
+          <span class="shot" style="display:block">
+            <picture>
+              <source srcset="assets/capturas/03-exclusiones.webp" type="image/webp">
+              <img src="assets/capturas/03-exclusiones.png" width="1280" height="820" loading="lazy"
+                   alt="Diálogo de carpetas excluidas de una unidad en VeloxFinder">
+            </picture>
+          </span>
+        </button>
+        <figcaption><b>Carpetas excluidas</b>
+          Lo que haya dentro no se indexa ni aparece. Además acelera el indexado: esas ramas ni se abren.</figcaption>
+      </figure>
+      <figure>
+        <button class="shotbtn" data-full="assets/capturas/02-sintaxis.png">
+          <span class="shot" style="display:block">
+            <picture>
+              <source srcset="assets/capturas/02-sintaxis.webp" type="image/webp">
+              <img src="assets/capturas/02-sintaxis.png" width="1280" height="820" loading="lazy"
+                   alt="Chuleta de sintaxis de búsqueda de VeloxFinder">
+            </picture>
+          </span>
+        </button>
+        <figcaption><b>Sintaxis</b>
+          Todos los operadores a mano con <kbd>F1</kbd>, sin salir del programa.</figcaption>
+      </figure>
+    </div>
+    <p class="cap" style="margin-top:22px">Las capturas usan un conjunto de archivos de ejemplo, no archivos reales.</p>
+  </div>
+</section>
+
+<!-- ============ DESCARGAR ============ -->
+<section id="descargar" class="dl">
+  <div class="wrap">
+    <div class="dl-head">
+      <p class="eyebrow">Descargar</p>
+      <h2>Elige tu sistema.</h2>
+      <p class="lede">Un instalador o un archivo suelto que no toca nada. Versión
+        <span id="ver-inline" style="font-family:var(--mono);color:var(--text)">1.0.1</span>,
+        licencia MIT, sin cuenta ni registro de por medio.</p>
+    </div>
+
+    <div class="os">
+      <!-- Windows -->
+      <div class="os-col">
+        <header>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5l7.4-1v7.1H3zm0 13l7.4 1v-7h-7.4zM11.4 4.3L21 3v8.6h-9.6zm0 15.4L21 21v-8.4h-9.6z"/></svg>
+          <h3>Windows</h3>
+          <span class="ver" data-ver>10 · 11 · 64 bits</span>
+        </header>
+
+        <div class="pkg">
+          <div class="txt">
+            <h4>Instalador<span class="rec">Recomendado</span></h4>
+            <p>Asistente de instalación con el runtime de WebView2 incrustado, así que
+               <strong style="color:var(--dim)">no necesita conexión</strong> al instalar.</p>
+            <code data-name>VeloxFinder_1.0.1_x64-setup.exe</code>
+            <span class="size" data-size>Tamaño: ver en GitHub</span>
+          </div>
+          <a class="btn btn-primary" data-dl="win-setup"
+             href="https://github.com/altorrecillas/VeloxFinder/releases">.exe</a>
+        </div>
+
+        <div class="pkg">
+          <div class="txt">
+            <h4>Portátil</h4>
+            <p>Un solo archivo. No instala nada, no toca el registro, funciona desde un pendrive.</p>
+            <code data-name>VeloxFinderportable.exe</code>
+            <span class="size" data-size>Tamaño: ver en GitHub</span>
+          </div>
+          <a class="btn" data-dl="win-portable"
+             href="https://github.com/altorrecillas/VeloxFinder/releases">.exe</a>
+        </div>
+      </div>
+
+      <!-- Linux -->
+      <div class="os-col">
+        <header>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7.5L12 12.5l8.7-5"/><path d="M12 12.5V21"/></svg>
+          <h3>Linux</h3>
+          <span class="ver" data-ver>Debian · Ubuntu · derivadas</span>
+        </header>
+
+        <div class="pkg">
+          <div class="txt">
+            <h4>Paquete .deb<span class="rec">Recomendado</span></h4>
+            <p>Debian, Ubuntu, MX Linux y derivadas. Las dependencias las resuelve <code style="padding:0;background:none">apt</code>.</p>
+            <code data-name>sudo dpkg -i VeloxFinder_1.0.1_amd64.deb</code>
+            <span class="size" data-size>Tamaño: ver en GitHub</span>
+          </div>
+          <a class="btn btn-primary" data-dl="deb"
+             href="https://github.com/altorrecillas/VeloxFinder/releases">.deb</a>
+        </div>
+
+        <div class="pkg">
+          <div class="txt">
+            <h4>Binario portátil</h4>
+            <p>Un ejecutable suelto, sin instalar. Dale permisos con
+               <code style="padding:0;background:none">chmod +x</code> y listo.</p>
+            <code data-name>VeloxFinder-portable-linux</code>
+            <span class="size" data-size>Tamaño: ver en GitHub</span>
+          </div>
+          <a class="btn" data-dl="linux-portable"
+             href="https://github.com/altorrecillas/VeloxFinder/releases">bin</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="note">
+        <h4>Los ejecutables no van firmados</h4>
+        <p>SmartScreen avisará la primera vez en Windows: <em>Más información</em> →
+           <em>Ejecutar de todas formas</em>. Firmar un binario cuesta dinero todos los años;
+           el código está entero en GitHub para quien quiera comprobarlo o compilarlo él mismo.</p>
+      </div>
+      <div class="note info">
+        <h4>Para el indexado instantáneo, ejecútalo como administrador</h4>
+        <p>Windows sólo permite leer el disco en crudo con esos permisos, igual que el Everything
+           original. Sin ellos funciona idénticamente, sólo que indexa recorriendo carpetas y tarda
+           más en estar listo. La propia aplicación ofrece reiniciarse con permisos en su primera pantalla.</p>
+      </div>
+    </div>
+
+    <div class="reqs">
+      <div>
+        <b>Requisitos · Windows</b>
+        Windows 10 u 11 de 64 bits con WebView2 (viene de serie en Windows 11 y en Windows 10
+        actualizado; el instalador lo lleva dentro por si acaso). No hay versión de 32 bits a propósito.
+      </div>
+      <div>
+        <b>Requisitos · Linux</b>
+        <code>libwebkit2gtk-4.1-0</code>, <code>libgtk-3-0</code> y <code>libayatana-appindicator3-1</code>.
+        El <code>.deb</code> los declara como dependencias, así que <code>apt</code> los resuelve solo.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ATAJOS Y LÍMITES ============ -->
+<section>
+  <div class="wrap two">
+    <div>
+      <p class="eyebrow">Atajos</p>
+      <h2>Sin tocar el ratón.</h2>
+      <div class="keys">
+        <div class="keyrow"><span><kbd>Ctrl</kbd>+<kbd>F</kbd></span><span>ir a la caja de búsqueda</span></div>
+        <div class="keyrow"><span><kbd>↑</kbd> <kbd>↓</kbd> <kbd>Inicio</kbd> <kbd>Fin</kbd></span><span>moverse (con <kbd>Shift</kbd>, seleccionar rango)</span></div>
+        <div class="keyrow"><span><kbd>Enter</kbd></span><span>abrir · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> abrir la carpeta contenedora</span></div>
+        <div class="keyrow"><span><kbd>Ctrl</kbd>+<kbd>C</kbd></span><span>copiar los archivos · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> sólo las rutas</span></div>
+        <div class="keyrow"><span><kbd>Supr</kbd></span><span>enviar a la papelera</span></div>
+        <div class="keyrow"><span><kbd>Ctrl</kbd>+<kbd>M</kbd></span><span>filas compactas (más resultados por pantalla)</span></div>
+        <div class="keyrow"><span><kbd>Ctrl</kbd>+<kbd>D</kbd></span><span>panel de detalles · <kbd>Ctrl</kbd>+<kbd>J</kbd> cambiar tema</span></div>
+        <div class="keyrow"><span><kbd>F5</kbd></span><span>reconstruir el índice · <kbd>F1</kbd> sintaxis · <kbd>Esc</kbd> limpiar</span></div>
+      </div>
+    </div>
+
+    <div>
+      <p class="eyebrow">Lo que no hace</p>
+      <h2>Límites, dichos claros.</h2>
+      <ul class="lims" style="padding:0">
+        <li>El indexado por MFT sólo aplica a <b>volúmenes NTFS locales</b>. FAT32, exFAT y las
+            carpetas de red usan el recorrido de carpetas: igual de funcional, más lento de indexar
+            y sin actualización en vivo.</li>
+        <li>Leer el volumen en crudo exige <b>administrador</b>. Es una restricción de Windows,
+            no una decisión del programa.</li>
+        <li>El índice <b>no se guarda entre sesiones</b>: se reconstruye al arrancar.</li>
+        <li><b>En Linux no hay MFT</b>: se indexa recorriendo carpetas y no hay actualización en vivo.
+            Copiar archivos al portapapeles tampoco está disponible; la papelera usa <code>gio trash</code>.</li>
+        <li>No lee etiquetas de música ni dimensiones de imágenes, y los resultados no se pueden
+            arrastrar a otra aplicación: se copian con <kbd>Ctrl</kbd>+<kbd>C</kbd>.</li>
+        <li>Al cambiar las exclusiones de una unidad hay que <b>reindexarla</b>. La aplicación lo hace
+            sola al guardar.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ CIERRE ============ -->
+<section class="closing">
+  <div class="wrap">
+    <h2>Deja de esperar a que tu buscador termine.</h2>
+    <p class="lede">Software libre bajo licencia MIT. Sin cuentas, sin telemetría, sin
+       nada que salga de tu equipo.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" id="cta-bottom" href="#descargar">Descargar VeloxFinder</a>
+      <a class="btn" href="https://github.com/altorrecillas/VeloxFinder">Ver el código</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>VeloxFinder · MIT · Hecho con Rust y Tauri</span>
+    <nav>
+      <a href="https://github.com/altorrecillas/VeloxFinder">GitHub</a>
+      <a href="https://github.com/altorrecillas/VeloxFinder/releases">Releases</a>
+      <a href="https://github.com/altorrecillas/VeloxFinder/blob/main/CHANGELOG.md">Cambios</a>
+      <a href="https://github.com/altorrecillas/VeloxFinder/issues">Incidencias</a>
+      <a href="https://github.com/altorrecillas/VeloxFinder/blob/main/LICENSE">Licencia</a>
+    </nav>
+  </div>
+</footer>
+</main>
+
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Captura ampliada">
+  <button type="button" id="lb-close" aria-label="Cerrar">×</button>
+  <img id="lb-img" src="" alt="">
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var REPO = "altorrecillas/VeloxFinder";
+  var RELEASES = "https://github.com/" + REPO + "/releases";
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------------------------------------------------------------
+     1. Muestra de archivos ficticios para la demostración
+     --------------------------------------------------------------- */
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var rnd = rng(20260901);
+  var pick = function (a) { return a[Math.floor(rnd() * a.length)]; };
+
+  var PLAN = [
+    { base: "C:\\Users\\ana\\Documentos", subs: ["Facturas\\2026", "Facturas\\2025", "Contratos", "Informes", "Plantillas"],
+      names: ["factura-enero-2026", "factura-febrero-2026", "factura-marzo-2026", "factura-proveedor-4471",
+              "factura-proveedor-4472", "factura-anulada-0012", "factura-luz-marzo", "contrato-alquiler",
+              "contrato-mantenimiento", "informe-anual", "informe 2026 resumen", "informe-trimestral",
+              "acta final", "acta final revisada", "plantilla-factura", "nomina-enero", "presupuesto-obra"],
+      exts: ["pdf", "docx", "xlsx", "odt"] },
+    { base: "C:\\Users\\ana\\Imágenes", subs: ["Vacaciones 2025", "Cámara", "Capturas", "Escaneos"],
+      names: ["IMG_0431", "IMG_0432", "IMG_1180", "IMG_2044", "IMG_2045", "captura-pantalla-01",
+              "captura-pantalla-02", "escaneo-dni", "escaneo-recibo", "playa-atardecer", "logo-empresa"],
+      exts: ["jpg", "png", "webp", "heic"] },
+    { base: "D:\\Multimedia", subs: ["Vídeos", "Música\\Directos", "Podcasts"],
+      names: ["boda-ceremonia", "presentacion-producto", "tutorial-montaje", "concierto-1994",
+              "entrevista-final", "clip-drone", "demo-motor"],
+      exts: ["mp4", "mkv", "mp3", "flac"] },
+    { base: "D:\\Proyectos\\veloxfinder", subs: ["src", "src-tauri\\src\\engine", "docs", "dist\\assets", "node_modules\\vite"],
+      names: ["main", "style", "index", "search", "mftparse", "walker", "volume", "usn", "README",
+              "CHANGELOG", "Cargo", "package", "notas"],
+      exts: ["rs", "js", "css", "json", "md", "toml"] },
+    { base: "D:\\Copias", subs: ["2026-08", "2026-09", "Máquinas virtuales"],
+      names: ["respaldo-completo", "respaldo-documentos", "respaldo-fotos",
+              "factura-enero-2026", "informe-anual", "volcado-sql"],
+      exts: ["zip", "7z", "sql"] },
+    { base: "/home/alejandro/veloxfinder-demo", subs: ["Documentos/Facturas/2026", "Contabilidad/2026/Proveedores",
+              "Respaldos/2026-08", "Plantillas", "Descargas"],
+      names: ["factura-resumen-anual", "facturacion-trimestre-1", "factura-enero-2026", "plantilla-factura",
+              "balance-2026", "recibo-agua", "recibo-gas", "notas", "informe 2026 borrador"],
+      exts: ["xlsx", "pdf", "csv", "txt", "docx"] }
+  ];
+
+  var TIPOS = {
+    pdf: ["PDF", "#c0392b"], docx: ["DOC", "#2b6cb0"], odt: ["ODT", "#2b6cb0"], txt: ["TXT", "#4a5568"],
+    xlsx: ["XLS", "#1e7a4c"], csv: ["CSV", "#1e7a4c"], jpg: ["JPG", "#8e44ad"], png: ["PNG", "#8e44ad"],
+    webp: ["WEB", "#8e44ad"], heic: ["HEI", "#8e44ad"], mp4: ["MP4", "#b7791f"], mkv: ["MKV", "#b7791f"],
+    mp3: ["MP3", "#b7791f"], flac: ["FLA", "#b7791f"], zip: ["ZIP", "#7b5e2a"], "7z": ["7Z", "#7b5e2a"],
+    iso: ["ISO", "#7b5e2a"], vhdx: ["VHD", "#7b5e2a"], sql: ["SQL", "#2c7a7b"], rs: ["RS", "#a05a2c"],
+    js: ["JS", "#9c8118"], css: ["CSS", "#2b6cb0"], json: ["JSN", "#4a5568"], md: ["MD", "#4a5568"],
+    toml: ["TML", "#4a5568"], "": ["DIR", "#2f6da8"]
+  };
+
+  var RANGO = {
+    pdf: [4e4, 9e6], docx: [2e4, 5e6], odt: [2e4, 4e6], txt: [400, 3e5], md: [800, 2e5],
+    xlsx: [1.5e4, 6e6], csv: [2e3, 4e7], jpg: [3e5, 1.2e7], png: [1e5, 9e6], webp: [6e4, 4e6],
+    heic: [8e5, 6e6], mp4: [8e7, 2.4e9], mkv: [2e8, 6e9], mp3: [2e6, 2e7], flac: [1.5e7, 9e7],
+    zip: [5e5, 9e8], "7z": [5e5, 7e8], sql: [2e5, 4e8], iso: [7e8, 5e9], vhdx: [2e9, 1.2e10],
+    rs: [800, 9e4], js: [500, 2.5e5], css: [400, 8e4], json: [200, 6e4], toml: [150, 8e3]
+  };
+  function sizeFor(e) {
+    var r = RANGO[e] || [2e4, 4e6], lo = Math.log(r[0]), hi = Math.log(r[1]);
+    return Math.round(Math.exp(lo + rnd() * (hi - lo)));
+  }
+
+  var FILES = [];
+  var HOY = new Date(2026, 8, 9, 11, 4);
+  PLAN.forEach(function (g) {
+    g.subs.forEach(function (sub) {
+      var sep = g.base.charAt(0) === "/" ? "/" : "\\";
+      var dir = g.base + sep + sub;
+      FILES.push({ n: sub.split(/[\\/]/).pop(), p: g.base, s: -1, d: new Date(HOY - rnd() * 2e10), e: "" });
+      var n = 4 + Math.floor(rnd() * 5);
+      for (var i = 0; i < n; i++) {
+        var name = pick(g.names), ext = pick(g.exts);
+        FILES.push({
+          n: name + "." + ext, p: dir, e: ext,
+          s: sizeFor(ext),
+          d: new Date(HOY - rnd() * 3.1e10)
+        });
+      }
+    });
+  });
+  // un par de archivos vacíos y un gigante, para que size: tenga de qué hablar
+  FILES.push({ n: "temporal.tmp", p: "C:\\Users\\ana\\AppData\\Local\\Temp", e: "tmp", s: 0, d: new Date(HOY - 6e8) });
+  FILES.push({ n: "debian-12-disco.vhdx", p: "D:\\Copias\\Máquinas virtuales", e: "vhdx", s: 3.4 * 1024 * 1024 * 1024, d: new Date(HOY - 4e9) });
+  FILES.push({ n: "windows11-24h2.iso", p: "D:\\Copias\\Máquinas virtuales", e: "iso", s: 5.1 * 1024 * 1024 * 1024, d: new Date(HOY - 9e9) });
+  FILES.push({ n: "notas.txt", p: "C:\\Users\\ana", e: "txt", s: 0, d: new Date(HOY - 3e8) });
+
+  var norm = function (s) {
+    return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  };
+  FILES.forEach(function (f) { f.N = norm(f.n); f.P = norm(f.p + "\\" + f.n); });
+
+  /* ---------------------------------------------------------------
+     2. Motor de búsqueda (subconjunto de la sintaxis real)
+     --------------------------------------------------------------- */
+  var UNITS = { b: 1, kb: 1024, mb: 1048576, gb: 1073741824 };
+  function parseSize(v) {
+    var m = /^([\d.,]+)\s*(b|kb|mb|gb)?$/.exec(v);
+    if (!m) return null;
+    return parseFloat(m[1].replace(",", ".")) * (UNITS[m[2] || "b"] || 1);
+  }
+  function wildcard(term) {
+    var re = term.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+    try { return new RegExp("^" + re + "$"); } catch (e) { return null; }
+  }
+  function tokenize(q) {
+    var out = [], re = /"([^"]*)"|(\S+)/g, m;
+    while ((m = re.exec(q))) out.push(m[1] !== undefined ? { phrase: m[1] } : { raw: m[2] });
+    return out;
+  }
+  function buildTest(tokens) {
+    var tests = [], limit = 0;
+    tokens.forEach(function (t) {
+      if (t.phrase !== undefined) {
+        var p = norm(t.phrase);
+        tests.push(function (f) { return f.N.indexOf(p) !== -1; });
+        return;
+      }
+      var raw = t.raw, neg = false;
+      if (raw.charAt(0) === "!" && raw.length > 1) { neg = true; raw = raw.slice(1); }
+      var test = null, low = norm(raw), c = raw.indexOf(":");
+
+      if (c > 0) {
+        var key = raw.slice(0, c).toLowerCase(), val = raw.slice(c + 1);
+        var v = norm(val);
+        if (key === "ext") {
+          var exts = v.split(/[;,]/).filter(Boolean);
+          test = function (f) { return exts.indexOf(f.e) !== -1; };
+        } else if (key === "path") {
+          test = function (f) { return f.P.indexOf(v) !== -1; };
+        } else if (key === "wfn") {
+          test = function (f) { return f.N === v; };
+        } else if (key === "regex") {
+          var rx = null; try { rx = new RegExp(val, "i"); } catch (e) {}
+          test = rx ? function (f) { return rx.test(f.n); } : function () { return false; };
+        } else if (key === "count") {
+          limit = parseInt(val, 10) || 0; test = function () { return true; };
+        } else if (key === "file") {
+          test = function (f) { return f.s >= 0; };
+        } else if (key === "folder") {
+          test = function (f) { return f.s < 0; };
+        } else if (key === "empty") {
+          test = function (f) { return f.s === 0; };
+        } else if (key === "dupe") {
+          test = function (f) { return f.dup === true; };
+        } else if (key === "dm") {
+          var span = { hoy: 1, ayer: 2, semana: 7, mes: 31, "ano": 365 }[v] || 0;
+          test = span ? function (f) { return (HOY - f.d) / 864e5 <= span; } : function () { return true; };
+        } else if (key === "size") {
+          if (v === "vacio") test = function (f) { return f.s === 0; };
+          else if (v.indexOf("..") !== -1) {
+            var pr = v.split(".."), a = parseSize(pr[0]), b = parseSize(pr[1]);
+            test = function (f) { return f.s >= a && f.s <= b; };
+          } else if (v.charAt(0) === ">") {
+            var g = parseSize(v.slice(1)); test = function (f) { return f.s > g; };
+          } else if (v.charAt(0) === "<") {
+            var l = parseSize(v.slice(1)); test = function (f) { return f.s >= 0 && f.s < l; };
+          } else { var eq = parseSize(v); test = function (f) { return f.s === eq; }; }
+        }
+      }
+      if (!test) {
+        if (/[*?]/.test(raw)) {
+          var wc = wildcard(low);
+          test = wc ? function (f) { return wc.test(f.N); } : function () { return true; };
+        } else {
+          test = function (f) { return f.N.indexOf(low) !== -1; };
+          if (!neg) tests.hl = (tests.hl || []).concat([low]);
+        }
+      }
+      tests.push(neg ? function (f) { return !test(f); } : test);
+    });
+    return { tests: tests, limit: limit, hl: tests.hl || [] };
+  }
+  function search(q) {
+    q = q.trim();
+    if (!q) return { rows: [], hl: [], total: 0 };
+    var groups = q.split(/\s+\|\s+/).map(function (part) { return buildTest(tokenize(part)); });
+    var needDup = /(^|\s)dupe:/.test(q);
+    if (needDup) {
+      var seen = {};
+      FILES.forEach(function (f) { seen[f.N] = (seen[f.N] || 0) + 1; });
+      FILES.forEach(function (f) { f.dup = seen[f.N] > 1 && f.s >= 0; });
+    }
+    var hl = [], limit = 0;
+    groups.forEach(function (g) { hl = hl.concat(g.hl); if (g.limit) limit = g.limit; });
+    var out = FILES.filter(function (f) {
+      for (var i = 0; i < groups.length; i++) {
+        var ok = true, t = groups[i].tests;
+        for (var j = 0; j < t.length; j++) if (!t[j](f)) { ok = false; break; }
+        if (ok) return true;
+      }
+      return false;
+    });
+    out.sort(function (a, b) { return a.N < b.N ? -1 : a.N > b.N ? 1 : 0; });
+    var total = out.length;
+    if (limit) out = out.slice(0, limit);
+    return { rows: out, hl: hl, total: total };
+  }
+
+  /* ---------------------------------------------------------------
+     3. Pintado
+     --------------------------------------------------------------- */
+  var el = {
+    q: document.getElementById("q"), rows: document.getElementById("rows"),
+    count: document.getElementById("st-count"), ms: document.getElementById("st-ms"),
+    total: document.getElementById("st-total"),
+    chips: document.getElementById("chips"), note: document.getElementById("demo-index-note")
+  };
+  var esc = function (s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  };
+  function fmtSize(b) {
+    if (b < 0) return "";
+    if (b === 0) return "0 KB";
+    if (b < 1048576) return (b / 1024).toFixed(1).replace(".", ",") + " KB";
+    if (b < 1073741824) return (b / 1048576).toFixed(1).replace(".", ",") + " MB";
+    return (b / 1073741824).toFixed(2).replace(".", ",") + " GB";
+  }
+  function fmtDate(d) {
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear() + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function mark(name, hl) {
+    var html = esc(name);
+    if (!hl.length) return html;
+    var nn = norm(name), used = [];
+    hl.forEach(function (h) {
+      if (!h) return;
+      var i = nn.indexOf(h);
+      if (i !== -1) used.push([i, i + h.length]);
+    });
+    if (!used.length) return html;
+    used.sort(function (a, b) { return a[0] - b[0]; });
+    var out = "", pos = 0;
+    used.forEach(function (r) {
+      if (r[0] < pos) return;
+      out += esc(name.slice(pos, r[0])) + "<mark>" + esc(name.slice(r[0], r[1])) + "</mark>";
+      pos = r[1];
+    });
+    return out + esc(name.slice(pos));
+  }
+  function render(q) {
+    var t0 = performance.now();
+    var r = search(q);
+    var ms = performance.now() - t0;
+    var shown = r.rows.slice(0, 120);
+    if (!q.trim()) {
+      el.rows.innerHTML = '<tr><td colspan="5" class="empty">Escribe algo para empezar. ' +
+        'La lista arranca vacía a propósito, igual que en la aplicación.</td></tr>';
+    } else if (!shown.length) {
+      el.rows.innerHTML = '<tr><td colspan="5" class="empty">Ningún archivo de la muestra coincide con «' + esc(q) + '».</td></tr>';
+    } else {
+      var html = "";
+      for (var i = 0; i < shown.length; i++) {
+        var f = shown[i], tp = TIPOS[f.e] || TIPOS[""];
+        html += '<tr><td class="c-name"><span class="fname">' +
+          '<span class="ftag" style="background:' + tp[1] + '">' + tp[0] + '</span>' +
+          '<span class="fn">' + mark(f.n, r.hl) + '</span></span></td>' +
+          '<td class="c-path">' + esc(f.p) + '</td>' +
+          '<td class="c-size">' + fmtSize(f.s) + '</td>' +
+          '<td class="c-date">' + fmtDate(f.d) + '</td>' +
+          '<td class="c-type">' + (f.s < 0 ? "CARPETA" : (f.e || "").toUpperCase()) + '</td></tr>';
+      }
+      el.rows.innerHTML = html;
+    }
+    el.count.textContent = r.total.toLocaleString("es-ES");
+    el.ms.textContent = ms === 0 ? "<0,01 ms"
+      : (ms < 1 ? Number(ms.toPrecision(2)) : ms < 10 ? ms.toFixed(2) : Math.round(ms))
+        .toString().replace(".", ",") + " ms";
+  }
+  el.total.textContent = FILES.length.toLocaleString("es-ES") + " elementos en la muestra";
+  el.note.textContent = FILES.length.toLocaleString("es-ES") + " elementos de ejemplo · " +
+    "en tu equipo serían millones";
+
+  el.q.addEventListener("input", function () { render(el.q.value); });
+
+  /* atajos de la demo */
+  var CHIPS = ["factura", "*.pdf", "size:>100mb", "IMG_", "ext:rs;js", "dupe:", "informe 2026", "!factura respaldo"];
+  CHIPS.forEach(function (c) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = c;
+    b.addEventListener("click", function () { setQuery(c); });
+    el.chips.appendChild(b);
+  });
+  function setQuery(q, scroll) {
+    el.q.value = q; render(q);
+    [].forEach.call(el.chips.children, function (c) { c.classList.toggle("on", c.textContent === q); });
+    if (scroll) {
+      document.getElementById("demo-window").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    }
+  }
+  document.querySelectorAll("button.tok[data-q]").forEach(function (b) {
+    b.addEventListener("click", function () { setQuery(b.getAttribute("data-q"), true); });
+  });
+
+  /* tecleo de bienvenida */
+  render("");
+  if (reduce) { setQuery("factura"); }
+  else {
+    var demo = "factura", i = 0;
+    var tick = function () {
+      i++; render(demo.slice(0, i));
+      el.q.value = demo.slice(0, i);
+      if (i < demo.length) setTimeout(tick, 105 + Math.random() * 70);
+    };
+    setTimeout(tick, 900);
+  }
+
+  /* ---------------------------------------------------------------
+     4. Lightbox
+     --------------------------------------------------------------- */
+  var lb = document.getElementById("lb"), lbImg = document.getElementById("lb-img");
+  function closeLb() { lb.removeAttribute("open"); document.body.style.overflow = ""; }
+  document.querySelectorAll("button.shotbtn").forEach(function (b) {
+    b.addEventListener("click", function () {
+      lbImg.src = b.getAttribute("data-full");
+      lbImg.alt = b.querySelector("img").alt;
+      lb.setAttribute("open", "");
+      document.body.style.overflow = "hidden";
+      document.getElementById("lb-close").focus();
+    });
+  });
+  lb.addEventListener("click", closeLb);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeLb(); });
+
+  /* ---------------------------------------------------------------
+     5. Descargas: sistema detectado + datos reales de la última release
+     --------------------------------------------------------------- */
+  var ua = navigator.userAgent, isLinux = /Linux|X11/.test(ua) && !/Android/.test(ua);
+  var isWin = /Windows/.test(ua);
+  var MATCH = {
+    "win-setup": function (n) { return /\.exe$/i.test(n) && /setup/i.test(n); },
+    "win-portable": function (n) { return /\.exe$/i.test(n) && !/setup/i.test(n); },
+    "deb": function (n) { return /\.deb$/i.test(n); },
+    "linux-portable": function (n) { return /portable-linux$/i.test(n) || (/linux/i.test(n) && !/\.deb$/i.test(n)); }
+  };
+  var preferred = isLinux ? "deb" : "win-setup";
+  var ctaLabel = document.getElementById("cta-primary-label");
+  ctaLabel.textContent = isLinux ? "Descargar para Linux (.deb)"
+    : isWin ? "Descargar para Windows" : "Descargar VeloxFinder";
+
+  function bytes(n) {
+    return n >= 1048576 ? (n / 1048576).toFixed(1).replace(".", ",") + " MB"
+      : Math.round(n / 1024) + " KB";
+  }
+  fetch("https://api.github.com/repos/" + REPO + "/releases/latest")
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (rel) {
+      var tag = (rel.tag_name || "").replace(/^v/, "");
+      if (tag) {
+        document.getElementById("ver-inline").textContent = tag;
+        document.querySelectorAll("[data-ver]").forEach(function (n) {
+          n.textContent = "v" + tag + " · " + n.textContent;
+        });
+      }
+      var assets = rel.assets || [];
+      Object.keys(MATCH).forEach(function (key) {
+        var a = assets.filter(function (x) { return MATCH[key](x.name); })[0];
+        var btn = document.querySelector('[data-dl="' + key + '"]');
+        if (!a || !btn) return;
+        btn.href = a.browser_download_url;
+        var pkg = btn.closest(".pkg");
+        var nameEl = pkg.querySelector("[data-name]"), sizeEl = pkg.querySelector("[data-size]");
+        if (nameEl) nameEl.textContent = nameEl.textContent.indexOf("dpkg") !== -1
+          ? "sudo dpkg -i " + a.name : a.name;
+        if (sizeEl) sizeEl.textContent = bytes(a.size) + " · " + a.download_count.toLocaleString("es-ES") + " descargas";
+        if (key === preferred) document.getElementById("cta-primary").href = a.browser_download_url;
+      });
+    })
+    .catch(function () { /* sin release publicada o sin red: los botones llevan a la página de releases */ });
+})();
+</script>
+</body>
+</html>
